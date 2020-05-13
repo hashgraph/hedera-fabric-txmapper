@@ -15,7 +15,8 @@ fabric:
       level: info
     # Root of the MSP directories with keys and certs.
     cryptoconfig:
-      path: /Users/xin/work/go/src/github.com/hyperledger/fabric/first-network/crypto-config
+      # an example is the first-network sample's crypto-config directory
+      path:
     # BCCSP config for the client. Used by GO SDK.
     BCCSP:
       security:
@@ -107,30 +108,7 @@ fabric:
         allow-insecure: false
       tlsCACerts:
         # Certificate location absolute path
-        path: /Users/xin/work/go/src/github.com/hyperledger/fabric/first-network/crypto-config/peerOrganizations/org1.example.com/tlsca/tlsca.org1.example.com-cert.pem
-
-  entityMatchers:
-    peer:
-      - pattern: peer0.org1.example.com:7051
-        urlSubstitutionExp: localhost:7051
-        eventUrlSubstitutionExp: localhost:7053
-        sslTargetOverrideUrlSubstitutionExp: peer0.org1.example.com
-        mappedHost: local.peer0.org1.example.com
-      - pattern: peer1.org1.example.com:7151
-        urlSubstitutionExp: localhost:7151
-        eventUrlSubstitutionExp: localhost:7153
-        sslTargetOverrideUrlSubstitutionExp: peer1.org1.example.com
-        mappedHost: local.peer1.org1.example.com
-      - pattern: peer0.org2.example.com:8051
-        urlSubstitutionExp: localhost:8051
-        eventUrlSubstitutionExp: localhost:8053
-        sslTargetOverrideUrlSubstitutionExp: peer0.org2.example.com
-        mappedHost: local.peer0.org2.example.com
-      - pattern: peer1.org2.example.com:9051
-        urlSubstitutionExp: localhost:9051
-        eventUrlSubstitutionExp: localhost:9053
-        sslTargetOverrideUrlSubstitutionExp: peer1.org2.example.com
-        mappedHost: local.peer1.org2.example.com
+        path:
 
 # config for HCS
 hcs:
