@@ -1,0 +1,110 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+*/
+
+syntax = "proto3";
+
+option go_package = "github.com/hashgraph/txmapper/proto";
+
+package hcs;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+// HcsMessage is a wrapper type for the messages that the HCS-based
+// orderer deals with.
+message HcsMessage {
+    oneof Type {
+        HcsMessageRegular regular = 1;
+        HcsMessageTimeToCut time_to_cut = 2;
+        HcsMessageOrdererStarted orderer_started = 3;
+    }
+}
+
+// HcsMessageRegular wraps a marshalled envelope.
+message HcsMessageRegular {
+    enum Class {
+        NORMAL = 0;
+        CONFIG = 1;
+    }
+    bytes payload = 1;
+    uint64 config_seq = 2;
+    Class class = 3;
+    uint64 original_seq = 4;
+}
+
+// HcsMessageTimeToCut is used to signal to the orderers that it is time to
+// cut block <block_number>.
+message HcsMessageTimeToCut {
+    uint64 block_number = 1;
+}
+
+message HcsMessageOrdererStarted {
+    bytes orderer_identity = 1;
+}
+
+// HcsMetadata is encoded into the ORDERER block to keep track of HCS-related
+// metadata associated with this block.
+message HcsMetadata {
+    // lastTimestampPersisted is the used to keep track of the timestamp of
+    // the last ordered message in the last block so when an HCS-based orderer
+    // boots up, it knows from when to retrieve ordererd messages
+    google.protobuf.Timestamp last_consensus_timestamp_persisted = 1;
+    uint64 last_original_sequence_processed = 2;
+    uint64 last_resubmitted_config_sequence = 3;
+    // last chunk free consensus timestamp is the consensus timestamp of the last
+    // chunk free block
+    google.protobuf.Timestamp last_chunk_free_consensus_timestamp_persisted = 4;
+}
+
+message HcsConfigPublicKey {
+    string type = 1;
+    string key = 2;
+}
+
+message HcsConfigMetadata {
+    // HCS topic ID in the format of shard.realm.num
+    string topic_id = 1;
+    // public keys of orderer nodes for signature verification
+    repeated HcsConfigPublicKey public_keys = 2;
+}
+
+message AccountID {
+    int64 shardNum = 1; //The shard number (nonnegative)
+    int64 realmNum = 2; //The realm number (nonnegative)
+    int64 accountNum = 3; //A nonnegative account number unique within its realm
+}
+
+message ApplicationMessageID {
+    google.protobuf.Timestamp validStart = 1;
+    AccountID accountID = 2; //The Account ID that paid for this transaction
+    google.protobuf.Any metadata = 3;
+}
+
+// a complete message containing data provided by an app
+message ApplicationMessage {
+    ApplicationMessageID applicationMessageId = 1;
+
+    bytes businessProcessMessage = 2;  // the payload
+    bytes unencryptedBusinessProcessMessageHash  = 3;
+    bytes businessProcessSignatureOnHash  = 4;
+    bytes encryptionRandom = 5;  // random number used for ivspec. it doubles as a flag to test if message is encrypted
+    google.protobuf.Any metadata = 6;
+    bytes metadataHash = 7;
+    bytes metadataSignatureOnHash = 8;
+}
+
+// parts of a complete message
+message ApplicationMessageChunk {
+    ApplicationMessageID applicationMessageId = 1;
+    int32 chunksCount = 2; // The total number of parts to make up a complete message
+    int32 chunkIndex = 3; // This message part index
+    bytes messageChunk = 4; // The message part
+    google.protobuf.Any metadata = 5;
+}
+
+// signature with public key
+message ApplicationSignature {
+    bytes publicKey = 1;
+    bytes signature = 2;
+}
