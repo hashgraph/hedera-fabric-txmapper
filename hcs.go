@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hashgraph/hedera-sdk-go"
-	hb "github.com/hashgraph/txmapper/proto"
+	hb "github.com/hashgraph/txmapper/protodef"
 )
 
 type blockCipher struct {
