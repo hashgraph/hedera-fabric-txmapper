@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	hb "github.com/hashgraph/hedera-fabric-txmapper/txmapper/protodef"
 	"github.com/hashgraph/hedera-sdk-go"
-	hb "github.com/hashgraph/txmapper/protodef"
 )
 
 type blockCipher struct {

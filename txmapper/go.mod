@@ -1,4 +1,4 @@
-module github.com/hashgraph/txmapper
+module github.com/hashgraph/hedera-fabric-txmapper/txmapper
 
 go 1.13
 

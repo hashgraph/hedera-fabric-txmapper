@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/proto"
+	hb "github.com/hashgraph/hedera-fabric-txmapper/txmapper/protodef"
 	"github.com/hashgraph/hedera-sdk-go"
-	hb "github.com/hashgraph/txmapper/protodef"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/orderer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/ledger"

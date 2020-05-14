@@ -4,7 +4,7 @@ SPDX-License-Identifier: Apache-2.0
 
 syntax = "proto3";
 
-option go_package = "github.com/hashgraph/txmapper/protodef";
+option go_package = "github.com/hashgraph/hedera-fabric-txmapper/txmapper/protodef";
 
 package protodef;
 
