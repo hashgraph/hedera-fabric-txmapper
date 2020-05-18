@@ -9,6 +9,7 @@ func loadConfig(configFile string) ([]byte, *hcsConfig, error) {
 	viper.SetConfigName(configFile)
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
+	viper.AddConfigPath("/")
 
 	var err error
 	if err = viper.ReadInConfig(); err != nil {
