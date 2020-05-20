@@ -195,22 +195,22 @@ func getHcsMetadataFromBlock(block *common.Block) (*hb.HcsMetadata, error) {
 	rawMetadata := block.Metadata.Metadata[common.BlockMetadataIndex_SIGNATURES]
 	metadata := &common.Metadata{}
 	if err := proto.Unmarshal(rawMetadata, metadata); err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal rawMetadata: %s", err)
+		return nil, errors.Wrap(err, "failed to unmarshal rawMetadata")
 	}
 
 	ordererMetadata := &common.OrdererBlockMetadata{}
 	if err := proto.Unmarshal(metadata.Value, ordererMetadata); err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal metadata.Value: %s", err)
+		return nil, errors.Wrap(err, "failed to unmarshal metadata.Value")
 	}
 
 	metadata.Reset()
 	if err := proto.Unmarshal(ordererMetadata.ConsenterMetadata, metadata); err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal ordererMetadata.ConsenterMetadata: %s", err)
+		return nil, errors.Wrap(err, "failed to unmarshal ordererMetadata.ConsenterMetadata")
 	}
 
 	hcsMetadata := &hb.HcsMetadata{}
 	if err := proto.Unmarshal(metadata.Value, hcsMetadata); err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal metadata.Value to HcsMetadata: %s", err)
+		return nil, errors.Wrap(err, "failed to unmarshal metadata.Value to HcsMetadata")
 	}
 
 	return hcsMetadata, nil

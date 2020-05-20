@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -8,6 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	hb "github.com/hashgraph/hedera-fabric-txmapper/txmapper/protodef"
 	"github.com/hashgraph/hedera-sdk-go"
+	"github.com/pkg/errors"
 )
 
 type blockCipher struct {
@@ -38,6 +42,37 @@ type consensusTopicResponse struct {
 	SequenceNumber     uint64
 }
 
+func makeGCMCipher(config *blockCipher) (cipher.AEAD, error) {
+	if config.Type != "aes-256-gcm" {
+		return nil, errors.Errorf("unsupported block cipher type: %s", config.Type)
+	}
+
+	if config.Key == "" {
+		return nil, errors.Errorf("no key provided")
+	}
+
+	rawKey, err := base64.StdEncoding.DecodeString(config.Key)
+	if err != nil {
+		return nil, errors.Wrap(err, "key string it not base64 encoded")
+	}
+
+	if len(rawKey) != 32 {
+		return nil, errors.Errorf("requires 32-byte key for aes-256-gcm, got %d bytes", len(rawKey))
+	}
+
+	block, err := aes.NewCipher(rawKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create the AES block cipher")
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create the GCM cipher")
+	}
+
+	return gcm, nil
+}
+
 func reassembleHcsMessages(hcsConfig *hcsConfig, topicID hedera.ConsensusTopicID, start time.Time, end time.Time) ([]*hcsApplicationMessage, error) {
 	var messages []*hcsApplicationMessage
 	client, err := hedera.NewMirrorClient(hcsConfig.MirrorNodeAddress)
@@ -45,7 +80,11 @@ func reassembleHcsMessages(hcsConfig *hcsConfig, topicID hedera.ConsensusTopicID
 		return messages, err
 	}
 
-	// TODO: handle decryption
+	gcmCipher, err := makeGCMCipher(&hcsConfig.BlockCipher)
+	if err != nil {
+		logger.Error(err)
+	}
+
 	pending := make(map[string]*chunkHolder)
 	done := make(chan struct{})
 	onNext := func(resp hedera.MirrorConsensusTopicResponse) {
@@ -97,6 +136,20 @@ func reassembleHcsMessages(hcsConfig *hcsConfig, topicID hedera.ConsensusTopicID
 			if err = proto.Unmarshal(data, appMsg); err != nil {
 				logger.Errorf("failed to unmarshal data to ApplicationMessage: %s", err)
 				return
+			}
+
+			if len(appMsg.EncryptionRandom) != 0 {
+				if gcmCipher == nil {
+					logger.Errorf("business process message is encrypted but no block cipher is configured, skip it...")
+					return
+				}
+
+				plaintext, err := gcmCipher.Open(nil, appMsg.EncryptionRandom, appMsg.BusinessProcessMessage, nil)
+				if err != nil {
+					logger.Error("failed to decrypt business process message, skip it...")
+					return
+				}
+				appMsg.BusinessProcessMessage = plaintext
 			}
 
 			hcsAppMsg := &hcsApplicationMessage{
