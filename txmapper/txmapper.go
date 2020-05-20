@@ -63,9 +63,25 @@ func main() {
 	}
 }
 
+type outputItem struct {
+	Operation string
+	Key       string
+	Value     string
+}
+
+type action struct {
+	Input  []string
+	Output []outputItem
+}
+
+type txInfo struct {
+	HcsMessageMeta []*consensusTopicResponse
+	Actions        []action
+}
+
 type result struct {
 	TopicID string
-	Mapping map[string][]*consensusTopicResponse
+	Mapping map[string]txInfo
 }
 
 func getMapping(cmd *cobra.Command, args []string) error {
@@ -99,10 +115,10 @@ func getMapping(cmd *cobra.Command, args []string) error {
 	// find the matching original transaction
 	result := &result{
 		TopicID: topicID.String(),
-		Mapping: make(map[string][]*consensusTopicResponse),
+		Mapping: make(map[string]txInfo),
 	}
 	for _, hcsAppMsg := range hcsAppMsgs {
-		thisTxID, err := getTxIDFromHcsMsg(hcsAppMsg.message)
+		payload, thisTxID, err := getTxPayloadIDFromHcsMsg(hcsAppMsg.message)
 		if err != nil {
 			logger.Errorf("failed to get txID from a reassembled message: %s", err)
 			continue
@@ -110,8 +126,15 @@ func getMapping(cmd *cobra.Command, args []string) error {
 
 		if thisTxID == txID {
 			// found the match
+			actions, err := getActionsFromTxPayload(payload)
+			if err != nil {
+				logger.Error(err)
+			}
 			result.TopicID = topicID.String()
-			result.Mapping[txID] = hcsAppMsg.responses
+			result.Mapping[txID] = txInfo{
+				HcsMessageMeta: hcsAppMsg.responses,
+				Actions:        actions,
+			}
 			return writeJSONOutput(result, outputFile)
 		}
 	}

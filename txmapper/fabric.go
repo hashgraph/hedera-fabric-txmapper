@@ -7,7 +7,10 @@ import (
 	hb "github.com/hashgraph/hedera-fabric-txmapper/txmapper/protodef"
 	"github.com/hashgraph/hedera-sdk-go"
 	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
+	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
 	"github.com/hyperledger/fabric-protos-go/orderer"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/ledger"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/context"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
@@ -216,36 +219,130 @@ func getHcsMetadataFromBlock(block *common.Block) (*hb.HcsMetadata, error) {
 	return hcsMetadata, nil
 }
 
-func getTxIDFromHcsMsg(rawHcsMsg []byte) (string, error) {
+func getTxPayloadIDFromHcsMsg(rawHcsMsg []byte) (*common.Payload, string, error) {
 	hcsMsg := &hb.HcsMessage{}
 	if err := proto.Unmarshal(rawHcsMsg, hcsMsg); err != nil {
-		return "", err
+		return nil, "", err
 	}
 
 	_, ok := hcsMsg.Type.(*hb.HcsMessage_Regular)
 	if !ok {
-		return "", errors.Errorf("not a fabric transaction, since it's not a regular HcsMessage")
+		return nil, "", errors.Errorf("not a fabric transaction, since it's not a regular HcsMessage")
 	}
 
 	envelope := &common.Envelope{}
 	if err := proto.Unmarshal(hcsMsg.GetRegular().Payload, envelope); err != nil {
-		return "", err
+		return nil, "", err
 	}
 
 	if envelope.Payload == nil {
-		return "", errors.Errorf("not a valid envelope")
+		return nil, "", errors.Errorf("not a valid envelope")
 	}
 
 	payload := &common.Payload{}
 	if err := proto.Unmarshal(envelope.Payload, payload); err != nil {
-		return "", err
+		return nil, "", err
 	}
 
 	header := &common.ChannelHeader{}
 	if err := proto.Unmarshal(payload.Header.ChannelHeader, header); err != nil {
-		return "", err
+		return nil, "", err
 	}
 
 	logger.Debugf("extracted txID - %s", header.TxId)
-	return header.TxId, nil
+	return payload, header.TxId, nil
+}
+
+func getActionsFromTxPayload(payload *common.Payload) ([]action, error) {
+	var actions []action
+
+	if payload == nil {
+		return nil, errors.Errorf("payload can't be nil")
+	}
+
+	header := &common.ChannelHeader{}
+	if err := proto.Unmarshal(payload.Header.ChannelHeader, header); err != nil {
+		return nil, err
+	}
+
+	if header.Type != int32(common.HeaderType_ENDORSER_TRANSACTION) {
+		return nil, errors.Errorf("transaction is not of type ENDORSER_TRANSACTION, stop decoding")
+	}
+
+	transaction := &pb.Transaction{}
+	if err := proto.Unmarshal(payload.Data, transaction); err != nil {
+		return nil, err
+	}
+
+	for _, txAction := range transaction.Actions {
+		action := action{}
+
+		ccaPayload := &pb.ChaincodeActionPayload{}
+		if err := proto.Unmarshal(txAction.Payload, ccaPayload); err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		proposal := &pb.ChaincodeProposalPayload{}
+		if err := proto.Unmarshal(ccaPayload.ChaincodeProposalPayload, proposal); err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		cciSpec := &pb.ChaincodeInvocationSpec{}
+		if err := proto.Unmarshal(proposal.Input, cciSpec); err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		ccInput := cciSpec.ChaincodeSpec.Input
+		for _, arg := range ccInput.Args {
+			action.Input = append(action.Input, string(arg))
+		}
+
+		// output
+		response := &pb.ProposalResponsePayload{}
+		if err := proto.Unmarshal(ccaPayload.Action.ProposalResponsePayload, response); err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		ccAction := &pb.ChaincodeAction{}
+		if err := proto.Unmarshal(response.Extension, ccAction); err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		txRWSet := &rwset.TxReadWriteSet{}
+		if err := proto.Unmarshal(ccAction.Results, txRWSet); err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		for _, rwsetEntry := range txRWSet.NsRwset {
+			kvRWSet := &kvrwset.KVRWSet{}
+			if err := proto.Unmarshal(rwsetEntry.Rwset, kvRWSet); err != nil {
+				logger.Error(err)
+				continue
+			}
+
+			for _, writeEntry := range kvRWSet.Writes {
+				item := outputItem{
+					Operation: "WRITE",
+					Key:       writeEntry.Key,
+					Value:     string(writeEntry.Value),
+				}
+
+				if writeEntry.IsDelete {
+					item.Operation = "DELETE"
+				}
+
+				action.Output = append(action.Output, item)
+			}
+		}
+
+		actions = append(actions, action)
+	}
+
+	return actions, nil
 }
