@@ -45,8 +45,9 @@ func main() {
 			}
 			return nil
 		},
-		RunE:         getMapping,
-		SilenceUsage: true,
+		RunE:          getMapping,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	cmd.Flags().StringVar(&configFile, "config", "", "the path of the config.yaml file")
@@ -84,7 +85,13 @@ type result struct {
 	Mapping map[string]txInfo
 }
 
-func getMapping(cmd *cobra.Command, args []string) error {
+func getMapping(cmd *cobra.Command, args []string) (err error) {
+	defer func() {
+		if err != nil {
+			logger.Error(err)
+		}
+	}()
+
 	fabricConfig, hcsConfig, err := loadConfig(configFile)
 	if err != nil {
 		return err
